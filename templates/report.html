@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DataLen – Quality Report</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet"/>
+</head>
+<body>
+
+<!-- ── Navbar ── -->
+<nav class="navbar navbar-expand-lg navbar-custom">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <span class="brand-icon">🔬</span>
+      <span class="brand-text">Data<span class="brand-accent">Len</span></span>
+    </a>
+    <div class="navbar-nav ms-auto d-flex flex-row gap-2">
+      <a class="nav-link nav-pill" href="/"><i class="bi bi-upload"></i> Upload</a>
+      <a class="nav-link nav-pill active" href="/report"><i class="bi bi-bar-chart-fill"></i> Report</a>
+      <a class="nav-link nav-pill" href="/assistant"><i class="bi bi-robot"></i> AI Chat</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-4">
+
+  <!-- ── Page Header ── -->
+  <div class="report-header mb-4">
+    <div class="row align-items-center">
+      <div class="col">
+        <h2 class="report-title">
+          <i class="bi bi-bar-chart-fill me-2" style="color:#6C63FF"></i>
+          Quality Report
+        </h2>
+        <p class="text-muted mb-0">
+          <i class="bi bi-file-earmark-spreadsheet me-1"></i>
+          <strong>{{ filename }}</strong>
+          {% if target_col %}
+            &nbsp;|&nbsp; <i class="bi bi-bullseye me-1"></i> Target: <code>{{ target_col }}</code>
+          {% endif %}
+        </p>
+      </div>
+      <div class="col-auto">
+        <a href="/assistant" class="btn btn-gradient">
+          <i class="bi bi-robot me-1"></i> Ask AI Assistant
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Health Score Banner ── -->
+  {% set health = analysis.get('health', {}) %}
+  {% set score = health.get('score', 0) %}
+  {% set grade = health.get('grade', 'F') %}
+  {% set hcolor = health.get('color', '#e74c3c') %}
+  <div class="health-banner mb-4" style="border-left: 5px solid {{ hcolor }}">
+    <div class="row align-items-center">
+      <div class="col-auto">
+        <div class="health-gauge" style="color: {{ hcolor }}">
+          <span class="health-score-num">{{ score }}</span>
+          <span class="health-score-denom">/100</span>
+          <div class="health-grade">Grade {{ grade }}</div>
+        </div>
+      </div>
+      <div class="col">
+        <h5 class="mb-1">Dataset Health Score</h5>
+        <div class="progress health-progress mb-2" style="height:10px;">
+          <div class="progress-bar" role="progressbar"
+               style="width:{{ score }}%; background-color:{{ hcolor }}" 
+               aria-valuenow="{{ score }}" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <div class="row g-2">
+          {% for dim, info in health.get('breakdown', {}).items() %}
+          <div class="col-auto">
+            <span class="badge-dim" style="border-color:{{ hcolor }}">
+              {{ dim.replace('_',' ').title() }}: {{ info.score }}/{{ info.max }}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Recommendations ── -->
+  {% if health.get('recommendations') %}
+  <div class="recs-card mb-4">
+    <div class="recs-header">
+      <i class="bi bi-lightbulb-fill text-warning me-2"></i>
+      <strong>AI Recommendations</strong>
+    </div>
+    <ul class="recs-list">
+      {% for rec in health.recommendations %}
+      <li>{{ rec }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <!-- ── Dataset Overview ── -->
+  {% set quality = analysis.get('quality', {}) %}
+  {% set shape = quality.get('shape', {}) %}
+  <div class="row g-3 mb-4">
+    {% set stats = [
+      ("bi-table", "#6C63FF", shape.get('rows', 0)|string, "Rows"),
+      ("bi-layout-three-columns", "#FF6584", shape.get('columns', 0)|string, "Columns"),
+      ("bi-exclamation-triangle-fill", "#F7971E", quality.get('missing_values', {}).get('total_missing', 0)|string, "Missing Cells"),
+      ("bi-copy", "#43CEA2", quality.get('duplicates', {}).get('count', 0)|string, "Duplicates"),
+    ] %}
+    {% for icon, color, value, label in stats %}
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-icon" style="color:{{ color }}"><i class="bi {{ icon }}"></i></div>
+        <div class="stat-value">{{ value }}</div>
+        <div class="stat-label">{{ label }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ── Dataset Preview ── -->
+  <div class="report-section mb-4">
+    <div class="section-title-row">
+      <i class="bi bi-eye-fill" style="color:#6C63FF"></i>
+      <h5>Dataset Preview <span class="badge bg-light text-dark ms-2">First 10 rows</span></h5>
+    </div>
+    <div class="table-responsive">
+      {{ preview_html | safe }}
+    </div>
+  </div>
+
+  <!-- ── Tabs ── -->
+  <ul class="nav nav-tabs report-tabs mb-0" id="reportTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabQuality" type="button">
+      <i class="bi bi-clipboard-data me-1"></i> Quality Checks
+    </button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabOutliers" type="button">
+      <i class="bi bi-radioactive me-1"></i> Outliers
+    </button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAutoencoder" type="button">
+      <i class="bi bi-cpu me-1"></i> Autoencoder
+    </button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabVisuals" type="button">
+      <i class="bi bi-images me-1"></i> Visualisations
+    </button></li>
+    {% if analysis.get('semantic') %}
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSemantic" type="button">
+      <i class="bi bi-diagram-3 me-1"></i> Semantic
+    </button></li>
+    {% endif %}
+  </ul>
+
+  <div class="tab-content report-tab-content">
+
+    <!-- ── Tab 1: Quality Checks ── -->
+    <div class="tab-pane fade show active" id="tabQuality">
+      <div class="row g-4">
+
+        <!-- Missing Values -->
+        <div class="col-12">
+          <div class="inner-card">
+            <div class="inner-card-header"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Missing Values</div>
+            {% set mv = quality.get('missing_values', {}) %}
+            <div class="row mb-3">
+              <div class="col-md-3"><div class="mini-stat blue">{{ mv.get('overall_pct', 0) }}%<small>Overall Missing</small></div></div>
+              <div class="col-md-3"><div class="mini-stat orange">{{ mv.get('columns_with_missing', 0) }}<small>Affected Columns</small></div></div>
+              <div class="col-md-3"><div class="mini-stat pink">{{ mv.get('total_missing', 0) }}<small>Missing Cells</small></div></div>
+              <div class="col-md-3"><div class="mini-stat green">{{ mv.get('total_cells', 0) }}<small>Total Cells</small></div></div>
+            </div>
+            {% if mv.get('percentages') %}
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle">
+                <thead><tr><th>Column</th><th>Missing Count</th><th>Missing %</th><th>Severity</th></tr></thead>
+                <tbody>
+                  {% for col, pct in mv.percentages.items() if pct > 0 %}
+                  <tr>
+                    <td><code>{{ col }}</code></td>
+                    <td>{{ mv.counts.get(col, 0) }}</td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <div class="progress flex-grow-1" style="height:8px">
+                          <div class="progress-bar {% if pct > 40 %}bg-danger{% elif pct > 10 %}bg-warning{% else %}bg-success{% endif %}"
+                               style="width:{{ [pct, 100]|min }}%"></div>
+                        </div>
+                        <span class="fw-500" style="min-width:40px">{{ pct }}%</span>
+                      </div>
+                    </td>
+                    <td>
+                      {% if pct > 40 %}<span class="badge bg-danger">Critical</span>
+                      {% elif pct > 10 %}<span class="badge bg-warning text-dark">High</span>
+                      {% elif pct > 0 %}<span class="badge bg-success">Low</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="4" class="text-center text-success"><i class="bi bi-check-circle-fill me-1"></i> No missing values!</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Duplicates -->
+        <div class="col-md-6">
+          <div class="inner-card h-100">
+            <div class="inner-card-header"><i class="bi bi-copy text-info"></i> Duplicate Rows</div>
+            {% set dups = quality.get('duplicates', {}) %}
+            <div class="text-center py-3">
+              <div class="big-number" style="color:{% if dups.percentage > 5 %}#e74c3c{% elif dups.percentage > 1 %}#f39c12{% else %}#2ecc71{% endif %}">
+                {{ dups.get('count', 0) }}
+              </div>
+              <div class="text-muted">duplicate rows ({{ dups.get('percentage', 0) }}%)</div>
+              {% if dups.count > 0 %}
+              <div class="mt-2">
+                <code class="fix-code">df.drop_duplicates(keep='first', inplace=True)</code>
+              </div>
+              {% else %}
+              <div class="mt-2 text-success"><i class="bi bi-check-circle-fill"></i> No duplicates found!</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Types -->
+        <div class="col-md-6">
+          <div class="inner-card h-100">
+            <div class="inner-card-header"><i class="bi bi-tags-fill" style="color:#6C63FF"></i> Data Types & Issues</div>
+            <div class="table-responsive" style="max-height:240px; overflow-y:auto;">
+              <table class="table table-sm table-hover align-middle">
+                <thead><tr><th>Column</th><th>Type</th><th>Issues</th></tr></thead>
+                <tbody>
+                  {% for col, info in quality.get('data_types', {}).items() %}
+                  <tr>
+                    <td><code>{{ col }}</code></td>
+                    <td><span class="badge dtype-badge">{{ info.dtype }}</span></td>
+                    <td>
+                      {% if info.issues %}
+                        {% for issue in info.issues %}
+                          <span class="badge bg-warning text-dark small">{{ issue }}</span>
+                        {% endfor %}
+                      {% else %}
+                        <span class="text-success small"><i class="bi bi-check"></i> OK</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Class Imbalance -->
+        {% if quality.get('class_imbalance') %}
+        <div class="col-12">
+          <div class="inner-card">
+            <div class="inner-card-header"><i class="bi bi-bar-chart-steps text-danger"></i> Class Imbalance</div>
+            <div class="row g-3">
+              {% for col, info in quality.class_imbalance.items() %}
+              <div class="col-md-6 col-lg-4">
+                <div class="imbalance-card {% if info.is_imbalanced %}imbalanced{% endif %}">
+                  <div class="fw-600 mb-2"><code>{{ col }}</code></div>
+                  <div class="d-flex justify-content-between mb-1">
+                    <span class="text-muted small">Imbalance Ratio</span>
+                    <strong style="color:{% if info.is_imbalanced %}#e74c3c{% else %}#2ecc71{% endif %}">
+                      {{ info.imbalance_ratio }}:1
+                    </strong>
+                  </div>
+                  {% for label, count in info.distribution.items() %}
+                  {% set total = info.distribution.values()|sum %}
+                  <div class="mb-1">
+                    <div class="d-flex justify-content-between small">
+                      <span>{{ label }}</span><span>{{ count }}</span>
+                    </div>
+                    <div class="progress" style="height:6px">
+                      <div class="progress-bar" style="width:{{ (count/total*100)|round }}%; background:#6C63FF"></div>
+                    </div>
+                  </div>
+                  {% endfor %}
+                  {% if info.is_imbalanced %}
+                  <span class="badge bg-danger mt-2">Imbalanced</span>
+                  {% else %}
+                  <span class="badge bg-success mt-2">Balanced</span>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Correlations -->
+        {% if quality.get('correlations', {}).get('high_correlations') %}
+        <div class="col-12">
+          <div class="inner-card">
+            <div class="inner-card-header"><i class="bi bi-diagram-2-fill" style="color:#2193b0"></i> High Correlations (≥ 0.85)</div>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead><tr><th>Column A</th><th>Column B</th><th>Correlation</th><th>Risk</th></tr></thead>
+                <tbody>
+                  {% for pair in quality.correlations.high_correlations %}
+                  <tr>
+                    <td><code>{{ pair.col_a }}</code></td>
+                    <td><code>{{ pair.col_b }}</code></td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <div class="progress flex-grow-1" style="height:8px">
+                          <div class="progress-bar" style="width:{{ (pair.correlation|abs * 100)|round }}%; background:#F7971E"></div>
+                        </div>
+                        <span class="fw-600">{{ pair.correlation }}</span>
+                      </div>
+                    </td>
+                    <td>
+                      {% if pair.correlation|abs > 0.95 %}
+                        <span class="badge bg-danger">High</span>
+                      {% else %}
+                        <span class="badge bg-warning text-dark">Medium</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Data Leakage -->
+        {% if quality.get('data_leakage') %}
+        <div class="col-12">
+          <div class="inner-card">
+            <div class="inner-card-header"><i class="bi bi-shield-exclamation text-danger"></i> Data Leakage Detection</div>
+            <p class="text-muted small mb-3">{{ quality.data_leakage.message }}</p>
+            {% if quality.data_leakage.leakage_candidates %}
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead><tr><th>Column</th><th>Correlation with Target</th><th>Risk Level</th></tr></thead>
+                <tbody>
+                  {% for c in quality.data_leakage.leakage_candidates %}
+                  <tr>
+                    <td><code>{{ c.column }}</code></td>
+                    <td>{{ c.correlation_with_target }}</td>
+                    <td>
+                      {% if c.risk == 'HIGH' %}
+                        <span class="badge bg-danger">🚨 HIGH</span>
+                      {% else %}
+                        <span class="badge bg-warning text-dark">⚠️ MEDIUM</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <p class="text-success"><i class="bi bi-check-circle-fill me-1"></i> No data leakage detected.</p>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
+    </div><!-- /tabQuality -->
+
+    <!-- ── Tab 2: Outliers ── -->
+    <div class="tab-pane fade" id="tabOutliers">
+      {% set outliers = analysis.get('outliers', {}) %}
+      <div class="row g-4">
+
+        <!-- Summary cards -->
+        <div class="col-12">
+          <div class="row g-3">
+            {% for method, key, color in [('Z-Score','zscore','#6C63FF'),('IQR','iqr','#FF6584'),('Isolation Forest','isolation_forest','#43CEA2')] %}
+            <div class="col-md-4">
+              <div class="outlier-summary-card" style="border-top: 4px solid {{ color }}">
+                <div class="text-muted small mb-1">{{ method }}</div>
+                {% if key == 'isolation_forest' %}
+                  <div class="big-number" style="color:{{ color }}">{{ outliers.get(key, {}).get('anomaly_count', 0) }}</div>
+                  <div class="text-muted small">anomalous rows ({{ outliers.get(key, {}).get('anomaly_percentage', 0) }}%)</div>
+                {% else %}
+                  <div class="big-number" style="color:{{ color }}">{{ outliers.get(key, {}).get('total_outliers', 0) }}</div>
+                  <div class="text-muted small">outlier values detected</div>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- IQR per-column detail -->
+        <div class="col-12">
+          <div class="inner-card">
+            <div class="inner-card-header"><i class="bi bi-box-fill text-warning"></i> IQR Outlier Detail</div>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead><tr><th>Column</th><th>Count</th><th>%</th><th>Lower Bound</th><th>Upper Bound</th><th>Sample Values</th></tr></thead>
+                <tbody>
+                  {% for col, info in outliers.get('iqr', {}).get('per_column', {}).items() if info.count > 0 %}
+                  <tr>
+                    <td><code>{{ col }}</code></td>
+                    <td>{{ info.count }}</td>
+                    <td><span class="badge {% if info.percentage > 10 %}bg-danger{% elif info.percentage > 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ info.percentage }}%</span></td>
+                    <td>{{ info.lower_bound }}</td>
+                    <td>{{ info.upper_bound }}</td>
+                    <td class="text-muted small">{{ info['values'][:3]|join(', ') }}</td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="6" class="text-center text-success">No IQR outliers detected.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Z-Score per-column detail -->
+        <div class="col-12">
+          <div class="inner-card">
+            <div class="inner-card-header"><i class="bi bi-graph-up text-info"></i> Z-Score Outlier Detail</div>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead><tr><th>Column</th><th>Count</th><th>%</th><th>Sample Values</th></tr></thead>
+                <tbody>
+                  {% for col, info in outliers.get('zscore', {}).get('per_column', {}).items() if info.count > 0 %}
+                  <tr>
+                    <td><code>{{ col }}</code></td>
+                    <td>{{ info.count }}</td>
+                    <td><span class="badge {% if info.percentage > 10 %}bg-danger{% elif info.percentage > 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ info.percentage }}%</span></td>
+                    <td class="text-muted small">{{ info['values'][:3]|join(', ') }}</td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="4" class="text-center text-success">No Z-Score outliers detected.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /tabOutliers -->
+
+    <!-- ── Tab 3: Autoencoder ── -->
+    <div class="tab-pane fade" id="tabAutoencoder">
+      {% set ae = analysis.get('autoencoder', {}) %}
+      {% if ae.get('error') %}
+      <div class="alert alert-danger mt-3"><pre class="mb-0 small">{{ ae.error }}</pre></div>
+      {% else %}
+      <div class="row g-4 mt-1">
+        <div class="col-md-4">
+          <div class="ae-stat-card purple">
+            <div class="ae-stat-num">{{ ae.get('anomaly_count', 0) }}</div>
+            <div>Anomalies Detected</div>
+            <div class="text-muted small">{{ ae.get('anomaly_percentage', 0) }}% of rows</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="ae-stat-card pink">
+            <div class="ae-stat-num">{{ ae.get('epochs_trained', 0) }}</div>
+            <div>Training Epochs</div>
+            <div class="text-muted small">Final loss: {{ ae.get('final_loss', 'N/A') }}</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="ae-stat-card teal">
+            <div class="ae-stat-num">{{ ae.get('feature_columns', [])|length }}</div>
+            <div>Feature Columns</div>
+            <div class="text-muted small">Numeric features used</div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="inner-card">
+            <div class="inner-card-header"><i class="bi bi-cpu text-info"></i> Architecture</div>
+            <div class="arch-diagram">
+              <div class="arch-block encoder">
+                <div class="arch-label">Input</div>
+                <div class="arch-dim">{{ ae.get('feature_columns', [])|length }}d</div>
+              </div>
+              <div class="arch-arrow">→</div>
+              <div class="arch-block encoder">
+                <div class="arch-label">Encoder</div>
+                <div class="arch-dim">FC → ReLU → Dropout</div>
+              </div>
+              <div class="arch-arrow">→</div>
+              <div class="arch-block bottleneck">
+                <div class="arch-label">Bottleneck</div>
+                <div class="arch-dim">Compressed</div>
+              </div>
+              <div class="arch-arrow">→</div>
+              <div class="arch-block decoder">
+                <div class="arch-label">Decoder</div>
+                <div class="arch-dim">FC → ReLU → Dropout</div>
+              </div>
+              <div class="arch-arrow">→</div>
+              <div class="arch-block decoder">
+                <div class="arch-label">Output</div>
+                <div class="arch-dim">{{ ae.get('feature_columns', [])|length }}d</div>
+              </div>
+            </div>
+            <p class="text-muted small mt-3">
+              MSE reconstruction error per row. Rows with error above the 
+              {{ ae.get('threshold_percentile', 95) }}th percentile are flagged as anomalies.
+            </p>
+          </div>
+        </div>
+        {% if ae.get('feature_columns') %}
+        <div class="col-12">
+          <div class="inner-card">
+            <div class="inner-card-header"><i class="bi bi-list-columns-reverse"></i> Features Used</div>
+            <div class="feature-pills">
+              {% for col in ae.feature_columns %}
+              <span class="feature-pill-sm">{{ col }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div><!-- /tabAutoencoder -->
+
+    <!-- ── Tab 4: Visualisations ── -->
+    <div class="tab-pane fade" id="tabVisuals">
+      <div class="row g-4 mt-1">
+        {% for key, filename in charts.items() %}
+        <div class="col-md-6">
+          <div class="chart-card">
+            <div class="chart-title">{{ key.replace('_', ' ').title() }}</div>
+            <img src="{{ url_for('static', filename='charts/' + filename) }}"
+                 class="chart-img" alt="{{ key }}"
+                 onerror="this.parentElement.innerHTML='<p class=text-center text-muted py-4>Chart not available</p>'"/>
+          </div>
+        </div>
+        {% endfor %}
+        {% if not charts %}
+        <div class="col-12 text-center py-4 text-muted">
+          <i class="bi bi-image-fill fs-1 mb-2 d-block"></i>
+          No charts generated.
+        </div>
+        {% endif %}
+      </div>
+    </div><!-- /tabVisuals -->
+
+    <!-- ── Tab 5: Semantic ── -->
+    {% if analysis.get('semantic') %}
+    <div class="tab-pane fade" id="tabSemantic">
+      {% set sem = analysis.semantic %}
+      {% if sem.get('error') %}
+      <div class="alert alert-danger mt-3"><pre class="small">{{ sem.error }}</pre></div>
+      {% else %}
+      <div class="row g-4 mt-1">
+        <div class="col-md-4">
+          <div class="ae-stat-card purple">
+            <div class="ae-stat-num">{{ sem.get('total_pairs_found', 0) }}</div>
+            <div>Semantic Duplicate Pairs</div>
+            <div class="text-muted small">threshold: {{ sem.get('threshold', 0.92) }}</div>
+          </div>
+        </div>
+        {% if sem.get('label_noise') %}
+        <div class="col-md-4">
+          <div class="ae-stat-card pink">
+            <div class="ae-stat-num">{{ sem.label_noise.get('total_noisy_pairs', 0) }}</div>
+            <div>Label Noise Pairs</div>
+            <div class="text-muted small">similar text, different labels</div>
+          </div>
+        </div>
+        {% endif %}
+        <div class="col-12">
+          <div class="inner-card">
+            <div class="inner-card-header"><i class="bi bi-diagram-3-fill text-info"></i> Semantic Duplicate Pairs</div>
+            {% if sem.semantic_duplicate_pairs %}
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead><tr><th>Row A</th><th>Text A</th><th>Row B</th><th>Text B</th><th>Similarity</th></tr></thead>
+                <tbody>
+                  {% for pair in sem.semantic_duplicate_pairs[:15] %}
+                  <tr>
+                    <td>{{ pair.idx_a }}</td>
+                    <td class="text-muted small" style="max-width:200px">{{ pair.text_a[:80] }}…</td>
+                    <td>{{ pair.idx_b }}</td>
+                    <td class="text-muted small" style="max-width:200px">{{ pair.text_b[:80] }}…</td>
+                    <td><span class="badge bg-info text-dark">{{ pair.similarity }}</span></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <p class="text-success"><i class="bi bi-check-circle-fill me-1"></i> No semantic duplicates found above threshold.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div><!-- /tabSemantic -->
+    {% endif %}
+
+  </div><!-- /tab-content -->
+</div><!-- /container -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

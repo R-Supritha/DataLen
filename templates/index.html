@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DataLen – Dataset Quality Inspector</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet"/>
+</head>
+<body>
+
+<!-- ── Navbar ── -->
+<nav class="navbar navbar-expand-lg navbar-custom">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <span class="brand-icon">🔬</span>
+      <span class="brand-text">Data<span class="brand-accent">Len</span></span>
+    </a>
+    <div class="navbar-nav ms-auto d-flex flex-row gap-2">
+      <a class="nav-link nav-pill {% if request.endpoint == 'index' %}active{% endif %}" href="/">
+        <i class="bi bi-upload"></i> Upload
+      </a>
+      <a class="nav-link nav-pill {% if request.endpoint == 'report' %}active{% endif %}" href="/report">
+        <i class="bi bi-bar-chart-fill"></i> Report
+      </a>
+      <a class="nav-link nav-pill {% if request.endpoint == 'assistant' %}active{% endif %}" href="/assistant">
+        <i class="bi bi-robot"></i> AI Chat
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Flash Messages ── -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="container mt-3">
+      {% for cat, msg in messages %}
+        <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">
+          {{ msg }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<!-- ── Hero ── -->
+<section class="hero-section">
+  <div class="container">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-6">
+        <div class="hero-eyebrow">AI-Powered Quality Analysis</div>
+        <h1 class="hero-title">
+          Stop shipping<br>
+          <span class="gradient-text">broken datasets.</span>
+        </h1>
+        <p class="hero-subtitle">
+          Upload any CSV or Excel file and get an instant, deep-dive quality report —
+          missing values, outliers, label noise, data leakage, and an overall health score.
+          Powered by PyTorch & Hugging Face.
+        </p>
+        <div class="hero-pills">
+          <span class="hero-pill"><i class="bi bi-lightning-fill"></i> PyTorch Autoencoder</span>
+          <span class="hero-pill"><i class="bi bi-cpu-fill"></i> HuggingFace MiniLM</span>
+          <span class="hero-pill"><i class="bi bi-graph-up-arrow"></i> Isolation Forest</span>
+          <span class="hero-pill"><i class="bi bi-shield-check-fill"></i> Health Score</span>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <!-- ── Upload Card ── -->
+        <div class="upload-card">
+          <div class="upload-card-header">
+            <i class="bi bi-cloud-arrow-up-fill upload-icon"></i>
+            <h4>Upload Your Dataset</h4>
+            <p class="text-muted small">Supports CSV and Excel files up to 50 MB</p>
+          </div>
+
+          <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+            <!-- Drop zone -->
+            <div class="drop-zone" id="dropZone">
+              <input type="file" id="fileInput" name="file" accept=".csv,.xlsx,.xls" hidden required/>
+              <div class="drop-zone-content" id="dropContent">
+                <i class="bi bi-file-earmark-spreadsheet-fill drop-icon"></i>
+                <p class="mb-1 fw-600">Drag & drop your file here</p>
+                <p class="text-muted small mb-3">or click to browse</p>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="document.getElementById('fileInput').click()">
+                  Choose File
+                </button>
+              </div>
+            </div>
+
+            <!-- Advanced Options -->
+            <div class="advanced-options mt-3">
+              <button class="btn btn-link btn-sm text-decoration-none p-0" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#advancedOpts">
+                <i class="bi bi-gear"></i> Advanced Options
+                <i class="bi bi-chevron-down ms-1"></i>
+              </button>
+              <div class="collapse mt-2" id="advancedOpts">
+                <div class="advanced-panel">
+                  <div class="mb-3">
+                    <label class="form-label fw-500">Target Column (optional)</label>
+                    <input type="text" name="target_column" class="form-control form-control-sm"
+                           placeholder="e.g. label, target, class"/>
+                    <div class="form-text">Enables data leakage detection and class imbalance analysis.</div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" name="run_semantic" id="runSemantic"/>
+                      <label class="form-check-label" for="runSemantic">
+                        Run Semantic Analysis <span class="badge bg-info text-dark">Slow</span>
+                      </label>
+                    </div>
+                    <div class="form-text">Downloads ~90 MB HuggingFace model on first run.</div>
+                  </div>
+                  <div class="mb-2" id="textColGroup" style="display:none;">
+                    <label class="form-label fw-500">Text Column for Semantic Analysis</label>
+                    <input type="text" name="text_column" class="form-control form-control-sm"
+                           placeholder="e.g. review, description, comment"/>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" class="btn btn-primary btn-lg w-100 mt-3" id="analyzeBtn">
+              <i class="bi bi-search"></i> Analyse Dataset
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features Grid ── -->
+<section class="features-section">
+  <div class="container">
+    <div class="section-header text-center mb-5">
+      <span class="section-eyebrow">What We Check</span>
+      <h2 class="section-title">Comprehensive Data Quality Analysis</h2>
+    </div>
+    <div class="row g-4">
+      {% set features = [
+        ("bi-exclamation-triangle-fill", "#FF6584", "Missing Values", "Detect, quantify, and visualise null values per column with actionable imputation strategies."),
+        ("bi-copy", "#6C63FF", "Duplicate Detection", "Identify exact and near-duplicate rows using both statistical and semantic (MiniLM) methods."),
+        ("bi-graph-up", "#43CEA2", "Outlier Detection", "Three methods: Z-Score, IQR, and Isolation Forest for robust anomaly flagging."),
+        ("bi-cpu", "#F7971E", "PyTorch Autoencoder", "Train a deep autoencoder on your data and surface anomalies via reconstruction error."),
+        ("bi-shield-exclamation", "#2193b0", "Leakage Detection", "Catch features that are suspiciously correlated with the target – a common competition killer."),
+        ("bi-stars", "#cc5333", "Health Score", "A single 0–100 score with per-dimension breakdown and prioritised recommendations."),
+      ] %}
+      {% for icon, color, title, desc in features %}
+      <div class="col-md-6 col-lg-4">
+        <div class="feature-card">
+          <div class="feature-icon" style="background: {{ color }}20; color: {{ color }}">
+            <i class="bi {{ icon }}"></i>
+          </div>
+          <h5 class="feature-title">{{ title }}</h5>
+          <p class="feature-desc">{{ desc }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ── Loading Overlay ── -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none;">
+  <div class="loading-card">
+    <div class="loading-spinner"></div>
+    <h4 class="mt-3">Analysing Dataset…</h4>
+    <p class="text-muted" id="loadingStatus">Running quality checks…</p>
+    <div class="loading-steps" id="loadingSteps">
+      <div class="step active" id="step1"><i class="bi bi-check-circle-fill"></i> Parsing file</div>
+      <div class="step" id="step2"><i class="bi bi-circle"></i> Quality checks</div>
+      <div class="step" id="step3"><i class="bi bi-circle"></i> Outlier detection</div>
+      <div class="step" id="step4"><i class="bi bi-circle"></i> Training autoencoder</div>
+      <div class="step" id="step5"><i class="bi bi-circle"></i> Generating charts</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Drag & Drop ──
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const dropContent = document.getElementById('dropContent');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) { fileInput.files = e.dataTransfer.files; updateDropZone(file.name); }
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) updateDropZone(fileInput.files[0].name);
+});
+function updateDropZone(name) {
+  dropContent.innerHTML = `<i class="bi bi-file-earmark-check-fill drop-icon" style="color:#43CEA2"></i>
+    <p class="mb-0 fw-600">${name}</p><p class="text-muted small">Ready to analyse</p>`;
+}
+
+// ── Semantic toggle ──
+document.getElementById('runSemantic').addEventListener('change', function() {
+  document.getElementById('textColGroup').style.display = this.checked ? 'block' : 'none';
+});
+
+// ── Loading overlay ──
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+  const fileOk = fileInput.files.length > 0;
+  if (!fileOk) return;
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.style.display = 'flex';
+  const steps = ['step1','step2','step3','step4','step5'];
+  const labels = ['Parsing file…','Running quality checks…','Detecting outliers…','Training autoencoder (PyTorch)…','Generating charts…'];
+  let i = 0;
+  function advance() {
+    if (i < steps.length) {
+      steps.forEach((s,idx) => {
+        document.getElementById(s).className = idx < i ? 'step done' : idx === i ? 'step active' : 'step';
+        document.getElementById(s).querySelector('i').className = idx < i ? 'bi bi-check-circle-fill' : 'bi bi-circle';
+      });
+      document.getElementById('loadingStatus').textContent = labels[i];
+      i++;
+      setTimeout(advance, 3500);
+    }
+  }
+  advance();
+});
+</script>
+</body>
+</html>
